@@ -71,32 +71,6 @@ export function businessOrderEmail(order: SavedOrder, brand: string) {
   return shell(brand, `New order ${order.orderId}`, "New product order received", body);
 }
 
-export function businessOrderText(order: SavedOrder, brand: string) {
-  return [
-    `${brand} - New product order received`,
-    "",
-    `Order ID: ${order.orderId}`,
-    `Date & time: ${order.dateTime}`,
-    "Status: New Order",
-    "",
-    "Customer details",
-    `Name: ${order.fullName}`,
-    `Phone: ${order.phone}`,
-    `Email: ${order.email}`,
-    `Exact location: ${order.location}`,
-    "",
-    "Product & payment",
-    `Product: ${order.productName}`,
-    `Quantity: ${order.quantity}`,
-    `Price per piece: ${formatNpr(order.pricePerPiece)}`,
-    `Delivery fee: ${formatNpr(order.deliveryFee)}`,
-    `Total: ${formatNpr(order.totalPrice)}`,
-    `Payment: ${order.paymentMethod}`,
-    "",
-    "Please call the customer soon to confirm this order.",
-  ].join("\n");
-}
-
 export function customerOrderEmail(order: SavedOrder, brand: string, supportEmail: string) {
   const body = `
     <tr><td style="padding:4px 32px 32px;">
@@ -118,25 +92,4 @@ export function customerOrderEmail(order: SavedOrder, brand: string, supportEmai
     </td></tr>`;
 
   return shell(brand, `Your ${brand} order has been received`, "Thank you for your order!", body);
-}
-
-export function customerOrderText(order: SavedOrder, brand: string, supportEmail: string) {
-  return [
-    `Hi ${order.fullName},`,
-    "",
-    `Thank you for your order from ${brand}. We received it successfully and will contact you shortly.`,
-    "",
-    `Order ID: ${order.orderId}`,
-    `Product: ${order.productName}`,
-    `Quantity: ${order.quantity}`,
-    `Delivery fee: ${formatNpr(order.deliveryFee)}`,
-    `Total price: ${formatNpr(order.totalPrice)}`,
-    "Payment method: Cash On Delivery",
-    "",
-    "Our sales representative will call you soon to confirm your order.",
-    `Questions? Reply to this email or contact ${supportEmail}.`,
-    "",
-    `Warmly,`,
-    brand,
-  ].join("\n");
 }
