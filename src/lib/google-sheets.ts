@@ -60,7 +60,15 @@ function statusRule(
   };
 }
 
-async function ensureSheetSetup(sheets: sheets_v4.Sheets, spreadsheetId: string, tabName: string) {
+type SheetSetup = {
+  title: string;
+  sheetId: number;
+  rowCount: number;
+  columnCount: number;
+  sheet: sheets_v4.Schema$Sheet;
+};
+
+async function ensureSheetReady(sheets: sheets_v4.Sheets, spreadsheetId: string, tabName: string): Promise<SheetSetup> {
   const metadata = await sheets.spreadsheets.get({ spreadsheetId });
   let sheet = metadata.data.sheets?.find((item) => item.properties?.title === tabName);
 
@@ -101,6 +109,12 @@ async function ensureSheetSetup(sheets: sheets_v4.Sheets, spreadsheetId: string,
       requestBody: { values: [[...SHEET_HEADERS]] },
     });
   }
+
+  return { title, sheetId, rowCount, columnCount, sheet: configuredSheet };
+}
+
+async function formatSheet(sheets: sheets_v4.Sheets, spreadsheetId: string, setup: SheetSetup) {
+  const { sheetId, rowCount, columnCount, sheet: configuredSheet } = setup;
 
   const requests: sheets_v4.Schema$Request[] = [
     {
@@ -239,14 +253,28 @@ async function ensureSheetSetup(sheets: sheets_v4.Sheets, spreadsheetId: string,
   });
 
   await sheets.spreadsheets.batchUpdate({ spreadsheetId, requestBody: { requests } });
-  return { title, sheetId, rowCount, columnCount };
+}
+
+let runtimeSetup: { key: string; promise: Promise<SheetSetup> } | undefined;
+
+function getRuntimeSheetSetup(sheets: sheets_v4.Sheets, spreadsheetId: string, tabName: string) {
+  const key = `${spreadsheetId}:${tabName}`;
+  if (runtimeSetup?.key === key) return runtimeSetup.promise;
+
+  const promise: Promise<SheetSetup> = ensureSheetReady(sheets, spreadsheetId, tabName).catch((error) => {
+    if (runtimeSetup?.promise === promise) runtimeSetup = undefined;
+    throw error;
+  });
+  runtimeSetup = { key, promise };
+  return promise;
 }
 
 export async function configureOrderSheet() {
   const spreadsheetId = required("GOOGLE_SHEET_ID");
   const tabName = required("GOOGLE_SHEET_TAB_NAME");
   const sheets = await getSheetsClient();
-  const setup = await ensureSheetSetup(sheets, spreadsheetId, tabName);
+  const setup = await ensureSheetReady(sheets, spreadsheetId, tabName);
+  await formatSheet(sheets, spreadsheetId, setup);
   return { spreadsheetId, tabName, sheetId: setup.sheetId, rowCount: setup.rowCount, columnCount: setup.columnCount };
 }
 
@@ -254,7 +282,7 @@ export async function appendOrderToSheet(order: SavedOrder) {
   const spreadsheetId = required("GOOGLE_SHEET_ID");
   const tabName = required("GOOGLE_SHEET_TAB_NAME");
   const sheets = await getSheetsClient();
-  const { title } = await ensureSheetSetup(sheets, spreadsheetId, tabName);
+  const { title } = await getRuntimeSheetSetup(sheets, spreadsheetId, tabName);
 
   const existingOrder = await sheets.spreadsheets.values.get({
     spreadsheetId,
