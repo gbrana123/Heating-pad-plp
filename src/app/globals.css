@@ -1,0 +1,63 @@
+@import "tailwindcss";
+
+:root {
+  --ink: #211916;
+  --muted: #70635d;
+  --paper: #fbf8f5;
+  --cream: #f3ebe4;
+  --wine: #8f1d2c;
+  --wine-dark: #68131f;
+  --orange: #e66b35;
+}
+
+* { box-sizing: border-box; }
+html { scroll-behavior: smooth; }
+body {
+  margin: 0;
+  color: var(--ink);
+  background: var(--paper);
+  font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  -webkit-font-smoothing: antialiased;
+}
+
+button, input, textarea, select { font: inherit; }
+button, a { -webkit-tap-highlight-color: transparent; }
+::selection { background: #8f1d2c; color: #fff; }
+
+.display-font {
+  font-family: Georgia, "Times New Roman", serif;
+  letter-spacing: -0.035em;
+}
+
+.page-shell { width: min(1180px, calc(100% - 32px)); margin-inline: auto; }
+.soft-shadow { box-shadow: 0 24px 70px rgba(69, 42, 32, 0.12); }
+.card-shadow { box-shadow: 0 12px 40px rgba(69, 42, 32, 0.08); }
+
+.dot-grid {
+  background-image: radial-gradient(rgba(143, 29, 44, 0.14) 1px, transparent 1px);
+  background-size: 20px 20px;
+}
+
+.noise {
+  position: relative;
+}
+.noise::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  opacity: 0.025;
+  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 180 180' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.9' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='.9'/%3E%3C/svg%3E");
+}
+
+.focus-ring:focus-visible { outline: 3px solid rgba(230, 107, 53, 0.4); outline-offset: 3px; }
+
+@keyframes float {
+  0%, 100% { transform: translateY(0) rotate(-1deg); }
+  50% { transform: translateY(-9px) rotate(1deg); }
+}
+.gentle-float { animation: float 5s ease-in-out infinite; }
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { scroll-behavior: auto !important; animation-duration: 0.001ms !important; animation-iteration-count: 1 !important; }
+}
