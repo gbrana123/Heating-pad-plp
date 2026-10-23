@@ -60,6 +60,19 @@ function statusRule(
   };
 }
 
+function populatedOrderRule(sheetId: number, rowCount: number): sheets_v4.Schema$ConditionalFormatRule {
+  return {
+    ranges: [{ sheetId, startRowIndex: 1, endRowIndex: rowCount, startColumnIndex: 0, endColumnIndex: SHEET_HEADERS.length }],
+    booleanRule: {
+      condition: { type: "CUSTOM_FORMULA", values: [{ userEnteredValue: '=$A2<>""' }] },
+      format: {
+        backgroundColor: { red: 1, green: 0.97, blue: 0.95 },
+        textFormat: { foregroundColor: { red: 0.18, green: 0.13, blue: 0.11 } },
+      },
+    },
+  };
+}
+
 type SheetSetup = {
   title: string;
   sheetId: number;
@@ -131,8 +144,8 @@ async function formatSheet(sheets: sheets_v4.Sheets, spreadsheetId: string, setu
         range: { sheetId, startRowIndex: 0, endRowIndex: 1, startColumnIndex: 0, endColumnIndex: SHEET_HEADERS.length },
         cell: {
           userEnteredFormat: {
-            backgroundColor: { red: 0.13, green: 0.09, blue: 0.08 },
-            textFormat: { foregroundColor: { red: 1, green: 1, blue: 1 }, bold: true, fontSize: 10 },
+            backgroundColor: { red: 0.56, green: 0.11, blue: 0.17 },
+            textFormat: { foregroundColor: { red: 1, green: 0.98, blue: 0.96 }, bold: true, fontSize: 10 },
             horizontalAlignment: "CENTER",
             verticalAlignment: "MIDDLE",
             wrapStrategy: "WRAP",
@@ -147,10 +160,10 @@ async function formatSheet(sheets: sheets_v4.Sheets, spreadsheetId: string, setu
         cell: {
           userEnteredFormat: {
             backgroundColor: { red: 1, green: 1, blue: 1 },
-            textFormat: { foregroundColor: { red: 0.16, green: 0.12, blue: 0.11 }, fontSize: 10 },
+            textFormat: { foregroundColor: { red: 0.18, green: 0.13, blue: 0.11 }, fontSize: 10 },
             verticalAlignment: "MIDDLE",
             wrapStrategy: "CLIP",
-            borders: { bottom: { style: "SOLID", color: { red: 0.92, green: 0.89, blue: 0.87 } } },
+            borders: { bottom: { style: "SOLID", color: { red: 0.91, green: 0.85, blue: 0.81 } } },
           },
         },
         fields: "userEnteredFormat(backgroundColor,textFormat,verticalAlignment,wrapStrategy,borders.bottom)",
@@ -233,6 +246,7 @@ async function formatSheet(sheets: sheets_v4.Sheets, spreadsheetId: string, setu
   ];
 
   const conditionalRules = [
+    populatedOrderRule(sheetId, rowCount),
     statusRule(sheetId, rowCount, "New Order", { red: 1, green: 0.91, blue: 0.92 }, { red: 0.55, green: 0.09, blue: 0.14 }),
     statusRule(sheetId, rowCount, "Order Confirmed", { red: 1, green: 0.95, blue: 0.82 }, { red: 0.48, green: 0.29, blue: 0 }),
     statusRule(sheetId, rowCount, "Order Ongoing", { red: 0.88, green: 0.94, blue: 1 }, { red: 0.08, green: 0.33, blue: 0.56 }),
