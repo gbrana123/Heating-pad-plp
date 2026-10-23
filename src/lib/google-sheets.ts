@@ -21,6 +21,7 @@ export const SHEET_HEADERS = [
 
 const MIN_FORMATTED_ROWS = 2000;
 const COLUMN_WIDTHS = [155, 155, 170, 125, 210, 270, 230, 80, 125, 125, 145, 145, 220, 185, 115] as const;
+const ORDER_STATUS_OPTIONS = ["New Order", "Order Confirmed", "Dispatched", "Order Ongoing", "Delivered", "Cancelled"] as const;
 
 function required(name: string) {
   const value = process.env[name]?.trim();
@@ -41,36 +42,40 @@ async function getSheetsClient() {
   return google.sheets({ version: "v4", auth });
 }
 
-function statusRule(
+function orderStatusHighlightRule(
   sheetId: number,
   rowCount: number,
-  status: string,
+  formula: string,
   background: sheets_v4.Schema$Color,
   foreground: sheets_v4.Schema$Color,
 ): sheets_v4.Schema$ConditionalFormatRule {
   return {
-    ranges: [{ sheetId, startRowIndex: 1, endRowIndex: rowCount, startColumnIndex: 11, endColumnIndex: 12 }],
+    ranges: [{ sheetId, startRowIndex: 1, endRowIndex: rowCount, startColumnIndex: 0, endColumnIndex: SHEET_HEADERS.length }],
     booleanRule: {
-      condition: { type: "CUSTOM_FORMULA", values: [{ userEnteredValue: `=$L2="${status}"` }] },
+      condition: { type: "CUSTOM_FORMULA", values: [{ userEnteredValue: formula }] },
       format: {
         backgroundColor: background,
-        textFormat: { bold: true, foregroundColor: foreground },
+        textFormat: { foregroundColor: foreground },
       },
     },
   };
 }
 
-function populatedOrderRule(sheetId: number, rowCount: number): sheets_v4.Schema$ConditionalFormatRule {
-  return {
-    ranges: [{ sheetId, startRowIndex: 1, endRowIndex: rowCount, startColumnIndex: 0, endColumnIndex: SHEET_HEADERS.length }],
-    booleanRule: {
-      condition: { type: "CUSTOM_FORMULA", values: [{ userEnteredValue: '=$A2<>""' }] },
-      format: {
-        backgroundColor: { red: 1, green: 0.97, blue: 0.95 },
-        textFormat: { foregroundColor: { red: 0.18, green: 0.13, blue: 0.11 } },
-      },
-    },
-  };
+const LEGACY_ORDER_HIGHLIGHT_FORMULA = '=$A2<>""';
+
+function orderStatusHighlightRules(sheetId: number, rowCount: number): sheets_v4.Schema$ConditionalFormatRule[] {
+  return [
+    orderStatusHighlightRule(sheetId, rowCount, '=$L2="New Order"', { red: 1, green: 0.95, blue: 0.7 }, { red: 0.35, green: 0.25, blue: 0 }),
+    orderStatusHighlightRule(sheetId, rowCount, '=OR($L2="Dispatched",$L2="Order Ongoing")', { red: 0.82, green: 0.95, blue: 0.85 }, { red: 0.08, green: 0.32, blue: 0.14 }),
+    orderStatusHighlightRule(sheetId, rowCount, '=OR($L2="Cancelled",$L2="Canceled")', { red: 1, green: 0.84, blue: 0.84 }, { red: 0.5, green: 0.04, blue: 0.08 }),
+  ];
+}
+
+function isManagedOrderHighlightFormula(formula: string | null | undefined) {
+  if (!formula) return false;
+  return formula === LEGACY_ORDER_HIGHLIGHT_FORMULA
+    || formula.includes("MOD(ROW()-2,5)")
+    || /\$L\d+=\"(?:New Order|Order Confirmed|Dispatched|Order Ongoing|Delivered|Cancelled|Canceled)\"/.test(formula);
 }
 
 type SheetSetup = {
@@ -210,7 +215,7 @@ async function formatSheet(sheets: sheets_v4.Sheets, spreadsheetId: string, setu
         rule: {
           condition: {
             type: "ONE_OF_LIST",
-            values: ["New Order", "Order Confirmed", "Order Ongoing", "Delivered", "Cancelled"].map((userEnteredValue) => ({ userEnteredValue })),
+            values: ORDER_STATUS_OPTIONS.map((userEnteredValue) => ({ userEnteredValue })),
           },
           strict: true,
           showCustomUi: true,
@@ -245,25 +250,23 @@ async function formatSheet(sheets: sheets_v4.Sheets, spreadsheetId: string, setu
     })),
   ];
 
-  const conditionalRules = [
-    populatedOrderRule(sheetId, rowCount),
-    statusRule(sheetId, rowCount, "New Order", { red: 1, green: 0.91, blue: 0.92 }, { red: 0.55, green: 0.09, blue: 0.14 }),
-    statusRule(sheetId, rowCount, "Order Confirmed", { red: 1, green: 0.95, blue: 0.82 }, { red: 0.48, green: 0.29, blue: 0 }),
-    statusRule(sheetId, rowCount, "Order Ongoing", { red: 0.88, green: 0.94, blue: 1 }, { red: 0.08, green: 0.33, blue: 0.56 }),
-    statusRule(sheetId, rowCount, "Delivered", { red: 0.88, green: 0.96, blue: 0.89 }, { red: 0.12, green: 0.39, blue: 0.18 }),
-    statusRule(sheetId, rowCount, "Cancelled", { red: 0.93, green: 0.93, blue: 0.93 }, { red: 0.38, green: 0.34, blue: 0.33 }),
-  ];
-  const existingFormulas = new Set(
-    configuredSheet.conditionalFormats
-      ?.map((rule) => rule.booleanRule?.condition?.values?.[0]?.userEnteredValue)
-      .filter((value): value is string => Boolean(value)) ?? [],
-  );
+  const statusHighlightRules = orderStatusHighlightRules(sheetId, rowCount);
+  const existingConditionalRules = configuredSheet.conditionalFormats ?? [];
+  const managedOrderHighlightRuleIndexes = existingConditionalRules
+    .map((rule, index) => ({ formula: rule.booleanRule?.condition?.values?.[0]?.userEnteredValue, index }))
+    .filter(({ formula }) => isManagedOrderHighlightFormula(formula))
+    .map(({ index }) => index);
 
-  conditionalRules.forEach((rule) => {
-    const formula = rule.booleanRule?.condition?.values?.[0]?.userEnteredValue;
-    if (formula && !existingFormulas.has(formula)) {
-      requests.push({ addConditionalFormatRule: { rule, index: configuredSheet.conditionalFormats?.length ?? 0 } });
-    }
+  managedOrderHighlightRuleIndexes
+    .sort((left, right) => right - left)
+    .forEach((index) => requests.push({ deleteConditionalFormatRule: { sheetId, index } }));
+
+  const remainingConditionalRules = existingConditionalRules.filter((_, index) => !managedOrderHighlightRuleIndexes.includes(index));
+  let nextConditionalRuleIndex = remainingConditionalRules.length;
+
+  statusHighlightRules.forEach((rule) => {
+    requests.push({ addConditionalFormatRule: { rule, index: nextConditionalRuleIndex } });
+    nextConditionalRuleIndex += 1;
   });
 
   await sheets.spreadsheets.batchUpdate({ spreadsheetId, requestBody: { requests } });
